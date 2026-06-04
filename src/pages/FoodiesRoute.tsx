@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Clock, ChevronRight, Loader2, Navigation } from 'lucide-react';
 import { useGlobalCart } from '../contexts/GlobalCartContext';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { fetchStoreById } from '../services/storeService';
 import { 
   searchAddresses, 
   getRecentAddresses, 
@@ -32,27 +33,39 @@ export function FoodiesRoute() {
   // Geoapify search state
   const [addressSuggestions, setAddressSuggestions] = useState<GeoapifyAddress[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [deliveryCoords, setDeliveryCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [stopCoords, setStopCoords] = useState<{ [key: string]: { lat: number; lng: number } }>({});
 
-  // Load saved route data from localStorage if available
+  // Load saved route data from localStorage if available. We also restore the
+  // delivery + stop coordinates so they are NOT lost when navigating back from
+  // FoodDelivery and forward again (otherwise the backend would report missing
+  // coordinates).
   const loadRouteData = () => {
     const stored = localStorage.getItem('FOODIES_ROUTE_DATA');
     if (stored) {
       try {
         const data = JSON.parse(stored);
+        const restoredStopCoords: { [key: string]: { lat: number; lng: number } } = {};
+        (data.stops || []).forEach((stop: any) => {
+          if (stop?.id && stop?.lat && stop?.lng) {
+            restoredStopCoords[stop.id] = { lat: stop.lat, lng: stop.lng };
+          }
+        });
         return {
           stops: data.stops || [],
-          deliveryLocation: data.deliveryLocation || ''
+          deliveryLocation: data.deliveryLocation || '',
+          deliveryCoords: data.deliveryCoords || null,
+          stopCoords: restoredStopCoords
         };
       } catch (error) {
         console.error('Error loading route data:', error);
       }
     }
-    return { stops: [], deliveryLocation: '' };
+    return { stops: [], deliveryLocation: '', deliveryCoords: null, stopCoords: {} };
   };
 
   const initialData = loadRouteData();
+
+  const [deliveryCoords, setDeliveryCoords] = useState<{ lat: number; lng: number } | null>(initialData.deliveryCoords);
+  const [stopCoords, setStopCoords] = useState<{ [key: string]: { lat: number; lng: number } }>(initialData.stopCoords);
 
   const [stops, setStops] = useState<Stop[]>(initialData.stops);
   const [deliveryLocation, setDeliveryLocation] = useState(initialData.deliveryLocation);
@@ -158,7 +171,9 @@ export function FoodiesRoute() {
   const handleCurrentLocationChange = (value: string) => {
     setCurrentLocationQuery(value);
     setDeliveryLocation(value);
-    setShowRecentAddresses(value.length === 0);
+    // Keep the suggestions panel visible while typing so live address results
+    // appear (just like on the Your Route page).
+    setShowRecentAddresses(true);
     handleSearchDebounce(value);
   };
 
@@ -190,7 +205,8 @@ export function FoodiesRoute() {
       stop.id === stopId ? { ...stop, address: value } : stop
     ));
     setStopAddressQuery(prev => ({ ...prev, [stopId]: value }));
-    setShowRecentAddresses(value.length === 0);
+    // Keep the suggestions panel visible while typing so live address results appear.
+    setShowRecentAddresses(true);
     handleSearchDebounce(value);
   };
 
@@ -281,14 +297,25 @@ export function FoodiesRoute() {
     );
   };
 
-  const handleGoToDelivery = () => {
+  const handleGoToDelivery = async () => {
     // Save route data to localStorage before navigation
     // Get store info from first cart item
     const storeId = cart[0]?.storeId || '';
     const storeName = cart[0]?.storeName || '';
     const storeAddress = cart[0]?.storeAddress || ''; // Real store address from Firestore
-    const storeLocation = (cart[0] as any)?.storeLocation || { lat: null, lng: null };
     const category = cart[0]?.category || 'food';
+
+    // Fetch the store document to get its real GPS coordinates. FoodDelivery
+    // requires real store coordinates to request delivery options from the backend.
+    let storeLocation = (cart[0] as any)?.storeLocation || { lat: null, lng: null };
+    try {
+      if (storeId) {
+        const storeDoc = await fetchStoreById(storeId);
+        storeLocation = storeDoc?.location ?? storeLocation;
+      }
+    } catch (error) {
+      console.error('Failed to fetch store location:', error);
+    }
     
     const routeData = {
       deliveryLocation,
@@ -425,10 +452,12 @@ export function FoodiesRoute() {
                     setActiveLocationInput('current-location');
                     setShowRecentAddresses(true);
                   }}
-                  placeholder={(locationLoading || geoLat === null) ? 'Detecting location...' : 'Delivery location'}
-                  disabled={locationLoading || geoLat === null}
-                  className="flex-1 bg-transparent text-gray-900 text-xs outline-none disabled:cursor-not-allowed"
+                  placeholder={locationLoading ? 'Getting your location...' : 'Delivery location'}
+                  className="flex-1 bg-transparent text-gray-900 text-xs outline-none"
                 />
+                {locationLoading && !currentLocationQuery && (
+                  <Loader2 size={14} className="mr-2 text-[#5B2EFF] animate-spin flex-shrink-0" />
+                )}
                 {currentLocationQuery && (
                   <motion.button
                     onClick={handleClearCurrentLocation}
@@ -537,8 +566,21 @@ export function FoodiesRoute() {
         {showRecentAddresses && (
           <div className="space-y-2">
             <p className="text-[10px] text-gray-500 px-2">
-              {currentLocationQuery === '' ? 'Suggested locations' : 'Recent addresses'}
+              {isSearching
+                ? 'Searching...'
+                : activeLocationInput === 'current-location' && currentLocationQuery !== ''
+                  ? 'Search results'
+                  : activeLocationInput !== 'current-location' && (stopAddressQuery[activeLocationInput as string] ?? '') !== ''
+                    ? 'Search results'
+                    : 'Suggested locations'}
             </p>
+
+            {isSearching && (
+              <div className="flex items-center gap-2 px-3 py-2">
+                <Loader2 size={14} className="text-[#5B2EFF] animate-spin" />
+                <span className="text-[10px] text-gray-500">Finding addresses...</span>
+              </div>
+            )}
 
             {currentLocationQuery === '' && currentLocation && activeLocationInput === 'current-location' && (
               <motion.button

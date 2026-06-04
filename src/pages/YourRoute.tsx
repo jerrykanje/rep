@@ -75,14 +75,41 @@ export const YourRoute: React.FC<YourRouteProps> = ({ onRouteComplete }) => {
   useEffect(() => {
     // Handle navigation state from SelectRide page
     if (location.state) {
-      const { highlightDestination, highlightAddStop, prefilledDestination, prefilledPickup } = location.state;
+      const {
+        highlightDestination,
+        highlightAddStop,
+        prefilledDestination,
+        prefilledPickup,
+        prefilledPickupCoords,
+        prefilledDestinationCoords,
+        prefilledStops,
+        prefilledStopCoords
+      } = location.state;
       
       if (prefilledPickup) {
         setPickup(prefilledPickup);
+        // Prevent the GPS auto-fill effect from overwriting the restored pickup.
+        setHasAutoFilledPickup(true);
       }
       
       if (prefilledDestination) {
         setDestination(prefilledDestination);
+      }
+
+      // Restore coordinates so they are not lost when navigating back and forth.
+      // Without this, returning to YourRoute and forward to SelectRide would send
+      // null coordinates and the backend would report "no driver available".
+      if (prefilledPickupCoords) {
+        setPickupCoords(prefilledPickupCoords);
+      }
+      if (prefilledDestinationCoords) {
+        setDestinationCoords(prefilledDestinationCoords);
+      }
+      if (Array.isArray(prefilledStops) && prefilledStops.length > 0) {
+        setStops(prefilledStops);
+        if (Array.isArray(prefilledStopCoords)) {
+          setStopCoords(prefilledStopCoords);
+        }
       }
       
       if (highlightDestination) {
@@ -481,15 +508,16 @@ export const YourRoute: React.FC<YourRouteProps> = ({ onRouteComplete }) => {
                 value={pickup}
                 onChange={(e) => handleInputChange(e.target.value)}
                 onFocus={() => handleFieldFocus('pickup')}
-                placeholder={(locationLoading || geoLat === null) ? 'Detecting location...' : getPlaceholder('pickup')}
-                className={`w-full bg-gray-100 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-500 focus:outline-none transition-all ${
+                placeholder={locationLoading ? 'Getting your location...' : getPlaceholder('pickup')}
+                className={`w-full bg-gray-100 rounded-xl px-4 py-3 pr-10 text-gray-900 placeholder-gray-500 focus:outline-none transition-all ${
                   isFieldActive('pickup') 
                     ? 'ring-2 ring-[#5B2EFF] bg-white shadow-lg shadow-[#5B2EFF]/20 border-2 border-[#5B2EFF]' 
                     : 'focus:ring-2 focus:ring-[#5B2EFF] focus:bg-white'
                 }`}
-                disabled={locationLoading || geoLat === null}
               />
-              {pickup && activeField === 'pickup' && (
+              {locationLoading && !pickup ? (
+                <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#5B2EFF] animate-spin" />
+              ) : pickup && activeField === 'pickup' ? (
                 <button
                   onClick={() => {
                     setPickup('');
@@ -500,7 +528,7 @@ export const YourRoute: React.FC<YourRouteProps> = ({ onRouteComplete }) => {
                 >
                   <X size={14} className="text-gray-600" />
                 </button>
-              )}
+              ) : null}
             </div>
             <button
               onClick={handleAddStop}

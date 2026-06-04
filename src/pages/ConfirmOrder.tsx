@@ -89,7 +89,8 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
     rideData,
     pickupCoords,
     destinationCoords,
-    stopCoords = []
+    stopCoords = [],
+    encodedPolyline
   } = location.state || {};
 
   // Use explicit serviceType from navigation if provided, otherwise infer
@@ -401,6 +402,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
             stopCoords,
             pickupCoords,
             destinationCoords,
+            encodedPolyline,
             vehicleCategory: isRide ? rideData?.vehicleCategory : (vehicle?.id || vehicle?.name || orderData.deliveryMode?.id),
             vehicleTitle: isRide ? rideData?.name : (vehicle?.name || orderData.deliveryMode?.label),
             price: isRide ? rideData?.estimatedPrice : (vehicle?.price || orderData.totalPrice),
@@ -469,7 +471,8 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
             : { lat: -26.2041, lng: 28.0473 }}
           zoom={14}
           markers={mapMarkers}
-          pickupEta={isRide ? parseInt(rideData?.eta?.replace(' min', '') || '2') : 2}
+          polyline={encodedPolyline ?? undefined}
+          pickupEta={isRide ? parseInt(rideData?.eta?.replace(' min', '') || '2') : (vehicle?.eta ?? 2)}
           arrivalTime={getArrivalTime()}
           fitBounds={mapMarkers.length > 1}
           className="w-full h-full"

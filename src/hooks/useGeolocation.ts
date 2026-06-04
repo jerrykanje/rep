@@ -73,11 +73,17 @@ export const useGeolocation = () => {
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
+    // Use watchPosition for reliable live GPS updates. maximumAge: 0 ensures we
+    // always receive fresh coordinates rather than a cached fix.
+    const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
       enableHighAccuracy: true,
       timeout: 10000,
-      maximumAge: 300000
+      maximumAge: 0
     });
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
   }, []);
 
   return location;

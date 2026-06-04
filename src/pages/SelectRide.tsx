@@ -358,7 +358,8 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           stops: navStops.length > 0 ? navStops : stops,
           pickupCoords,
           destinationCoords,
-          stopCoords: location.state?.stopCoords || []
+          stopCoords: location.state?.stopCoords || [],
+          encodedPolyline: selectedRide?.encodedPolyline ?? null
         }
       });
     }
@@ -452,7 +453,11 @@ export const SelectRide: React.FC<SelectRideProps> = ({
               state: {
                 highlightDestination: true,
                 prefilledDestination: navDestination || destination,
-                prefilledPickup: navPickup || pickup
+                prefilledPickup: navPickup || pickup,
+                prefilledPickupCoords: pickupCoords,
+                prefilledDestinationCoords: destinationCoords,
+                prefilledStops: navStops.length > 0 ? navStops : stops,
+                prefilledStopCoords: location.state?.stopCoords || []
               }
             })}
             className="flex-1 text-left min-w-0"
@@ -471,7 +476,11 @@ export const SelectRide: React.FC<SelectRideProps> = ({
               state: {
                 highlightAddStop: true,
                 prefilledDestination: navDestination || destination,
-                prefilledPickup: navPickup || pickup
+                prefilledPickup: navPickup || pickup,
+                prefilledPickupCoords: pickupCoords,
+                prefilledDestinationCoords: destinationCoords,
+                prefilledStops: navStops.length > 0 ? navStops : stops,
+                prefilledStopCoords: location.state?.stopCoords || []
               }
             })}
             className="flex-shrink-0 w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors"

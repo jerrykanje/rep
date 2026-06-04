@@ -66,6 +66,22 @@ function AppContent() {
   const [eta, setEta] = useState('3 mins');
   const [showRatingModal, setShowRatingModal] = useState(false);
 
+  // Trigger the browser's location permission dialog on first app load so GPS
+  // is ready before the user reaches any route page.
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        () => {}, // success — permissions now granted, useGeolocation hooks will pick it up
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) {
+            console.warn('Location permission denied');
+          }
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
+
   useEffect(() => {
     const rideId = localStorage.getItem('currentRideId');
     if (rideId) {

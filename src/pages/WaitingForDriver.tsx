@@ -63,6 +63,29 @@ export const WaitingForDriver: React.FC<WaitingForDriverProps> = ({
     ? (orderData.pricing?.basePrice || orderData.price || orderData.total) 
     : (isFood ? orderData.totalPrice : (orderData.price || orderData.estimatedPrice || price));
 
+  // Encoded route polyline passed through from ConfirmOrder.
+  const encodedPolyline = orderData.encodedPolyline;
+
+  // Derive ETA minutes from orderData.eta (may be a number or a "X min" string).
+  const pickupEtaMinutes = (() => {
+    const raw = orderData.eta;
+    if (typeof raw === 'number') return raw;
+    if (typeof raw === 'string') {
+      const parsed = parseInt(raw.replace(/[^0-9]/g, ''), 10);
+      return isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+  })();
+
+  // Calculate arrival time the same way ConfirmOrder does: add the ETA minutes to
+  // the current time and format as "H:MM AM/PM".
+  const getArrivalTime = (): string | undefined => {
+    if (pickupEtaMinutes === undefined) return undefined;
+    const now = new Date();
+    const arrival = new Date(now.getTime() + pickupEtaMinutes * 60000);
+    return arrival.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
   // Build map markers for pickup and destination
   const mapMarkers = useMemo((): MapMarker[] => {
     const markers: MapMarker[] = [];
@@ -130,7 +153,8 @@ export const WaitingForDriver: React.FC<WaitingForDriverProps> = ({
                 pickup: order.pickup?.address,
                 destination: order.dropoff?.address,
                 driverId: order.driver?.id,
-                driverInfo: order.driver
+                driverInfo: order.driver,
+                encodedPolyline
               }
             }
           });
@@ -189,6 +213,9 @@ export const WaitingForDriver: React.FC<WaitingForDriverProps> = ({
             : { lat: -15.3875, lng: 28.3228 }}
           zoom={13}
           markers={mapMarkers}
+          polyline={encodedPolyline ?? undefined}
+          pickupEta={pickupEtaMinutes}
+          arrivalTime={getArrivalTime()}
           fitBounds={mapMarkers.length > 1}
           className="w-full h-full"
         />
